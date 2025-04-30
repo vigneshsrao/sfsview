@@ -196,9 +196,9 @@ class SquashFSParser:
         num_blocks = 0
 
         if frag_idx == 0xFFFFFFFF:
-            math.ceil(file_size / block_size)
+            num_blocks = math.ceil(file_size / block_size)
         else:
-            math.floor(file_size / block_size)
+            num_blocks = math.floor(file_size / block_size)
 
 
         fd = FileInode(inode_header=header,
@@ -232,7 +232,7 @@ class SquashFSParser:
             elif typ == InodeType.DIRECTORY:
                 start += self.parse_inode_dir(inode_header, data[start+16:])
             else:
-                print("ERROR: Unsupported file type")
+                print(f"ERROR: Unsupported file type {typ}")
                 exit(-1)
 
 
