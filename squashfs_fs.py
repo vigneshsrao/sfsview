@@ -7,6 +7,29 @@ import time
 from typing import List, Dict, Tuple, Optional, BinaryIO
 from squashfs import SquashFSSuperblock, CompressionID
 
+def get_rwx(a):
+    val = ""
+    if a & 4:
+        val+='r'
+    else:
+        val+='-'
+    if a & 2:
+        val+='w'
+    else:
+        val+='-'
+    if a & 1:
+        val+='x'
+    else:
+        val += '-'
+    return val
+
+def get_perm(perm):
+    val = ""
+    val+=get_rwx((perm & 0b111000000) >> 6)
+    val+=get_rwx((perm & 0b000111000) >> 3)
+    val+=get_rwx((perm & 0b111))
+    return val
+
 # Constants for inode types
 class InodeType:
     DIRECTORY = 1
@@ -57,10 +80,11 @@ class InodeHeader:
     def print(self):
 
         date_str = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(self.mtime))
+        perms = get_perm(self.perms);
         print("Inode Header:")
         print("-------------")
         print(f"Type:         {self.typestr()}");
-        print(f"Perms:        {self.perms}");
+        print(f"Perms:        {perms} ( {self.perms} )");
         print(f"uid idx:      {self.uid}");
         print(f"gid idx:      {self.gid}");
         print(f"mtime:        {date_str} (Timestamp: {self.mtime})");
