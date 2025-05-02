@@ -128,7 +128,43 @@ class DirInode:
         print(f"Block Offset: {self.block_offset}");
         print(f"Parent:       {self.parent}");
         print("")
-      
+
+
+class FragmentEntry:
+
+    def __init__(self, start, size):
+        self.start = start
+
+        uncompressed = False
+        if ((size >> 24) & 1) == 1:
+            uncompressed = True
+
+        self.size = size & ~(1 << 24)
+        self.uncompressed = uncompressed
+
+    def print(self):
+
+        print("Fragment Entry")
+        print("--------------")
+        print(f"Start:         {hex(self.start)}")
+        print(f"Size:          {hex(self.size)}")
+        print(f"Uncompressed:  {str(self.uncompressed)}")
+
+
+class FragmentBlock:
+
+    def __init__(self, entries):
+        self.entries = entries
+
+    def print(self):
+
+        print("Fragment Block");
+        print("--------------");
+        for i in range(0, len(self.entries)):
+            print(f"Index:     {i}")
+            print(f"---------------")
+            entry = self.entries[i]
+            entry.print()
 
 class SquashFSParser:
     def __init__(self, file_path):
@@ -139,6 +175,7 @@ class SquashFSParser:
         self.id_table = []
         self.current_directory = None
         self.inodes = []
+        self.fragment_table = []
         
         # Read superblock first
         self._read_superblock()
@@ -148,6 +185,7 @@ class SquashFSParser:
             self._read_id_table()
 
             self.parse_inode_table()
+            self.parse_fragment_table()
             # Read root inode
             # self._read_root_inode()
            
@@ -259,6 +297,56 @@ class SquashFSParser:
                 print(f"ERROR: Unsupported file type {typ}")
                 exit(-1)
 
+    def get_metadata(self, offset):
+
+
+        self.file.seek(offset)
+        size = self.file.read(2)
+
+        # First 2 bytes store the size
+        size = struct.unpack("<H", size)[0];
+
+        uncompressed = False;
+        if size & 0x8000:
+            uncompressed = True;
+            size = size & ~0x8000
+
+
+        data = self.file.read(size);
+        if uncompressed:
+            return data
+
+        return self._decompress_block(data);
+
+
+    def parse_fragment_block(self, data):
+        block = []
+        for i in range(0, len(data), 16):
+            start = struct.unpack("<Q", data[i:i+8])[0]
+            size  = struct.unpack("<I", data[i+8:i+12])[0]
+            entry = FragmentEntry(start, size)
+            block.append(entry)
+
+        return FragmentBlock(block)
+
+
+    def parse_fragment_table(self):
+
+        if not self.superblock:
+            return
+
+        print("Parsing fragment table @ "+hex(self.superblock.fragment_table_start))
+        print("Size: "+hex(self.superblock.fragment_entry_count))
+        size = self.superblock.fragment_entry_count
+        self.file.seek(self.superblock.fragment_table_start);
+        tab = self.file.read(size*8);
+        table = [struct.unpack("<Q", tab[i:i+8])[0] for i in range(0, size*8, 8)]
+
+        for entry in table:
+            print(entry)
+            metadata = self.get_metadata(entry);
+            block = self.parse_fragment_block(metadata);
+            self.fragment_table.append(block)
 
     def parse_inode_table(self):
         if not self.superblock:
